@@ -8,13 +8,13 @@ namespace ImageShare
 {
 
     public partial class MainForm : Form
-	{
+    {
         [DllImport("user32.dll")]
         public static extern bool RegisterHotKey(IntPtr hWnd, int id, int fsModifiers, int vlc);
 
         private readonly SolidBrush fillBrush = new SolidBrush(Color.FromArgb(120, Color.Gray));
-		private Point[] selection = { new Point(0, 0), new Point(0, 0) };
-		private readonly Rectangle screenSize;
+        private Point[] selection = { new Point(0, 0), new Point(0, 0) };
+        private readonly Rectangle screenSize;
         private bool isPressed = false;
         private bool isMousePressed = false;
         private int keyId = 0;
@@ -29,17 +29,17 @@ namespace ImageShare
         }
 
         public MainForm()
-		{
-			InitializeComponent();
+        {
+            InitializeComponent();
             // TODO Add support for multiple desktops
             screenSize = Screen.PrimaryScreen.Bounds;
             SetStyle(ControlStyles.SupportsTransparentBackColor, true);
             BackColor = Color.Red;
             TransparencyKey = Color.Red;
             Opacity = 0;
-            
+
             // TODO Make custom shortcuts + parser
-            RegisterHotKey(Handle, keyId, (int) (KeyModifier.Shift | KeyModifier.Alt), Keys.A.GetHashCode());
+            RegisterHotKey(Handle, keyId, (int)(KeyModifier.Shift | KeyModifier.Alt), Keys.A.GetHashCode());
             // TODO Make two options whether it to pause the screen or not
             // BackgroundImage = CaptureDesktop(screenSize);
         }
@@ -62,7 +62,7 @@ namespace ImageShare
                 return;
             }
 
-            if(m.Msg == WM_LBUTTONDOWN)
+            if (m.Msg == WM_LBUTTONDOWN)
             {
                 if (isPressed)
                 {
@@ -93,9 +93,9 @@ namespace ImageShare
             }
 
             // Not working at all for some reason. Probably will not be needed anymore
-            if(m.Msg == WM_NCHITTEST)
+            if (m.Msg == WM_NCHITTEST)
             {
-                if(isPressed)
+                if (isPressed)
                     m.Result = new IntPtr(HTCLIENT);
                 else
                     m.Result = new IntPtr(HTTRANSPARENT);
@@ -115,9 +115,9 @@ namespace ImageShare
         }
 
         private void MainForm_FormClosing(object sender, FormClosingEventArgs e)
-		{
-			fillBrush?.Dispose();
-		}
+        {
+            fillBrush?.Dispose();
+        }
 
         // Should be removed later
         private void MainForm_KeyDown(object sender, KeyEventArgs e)
@@ -130,13 +130,13 @@ namespace ImageShare
 
         private void MainForm_Paint(object sender, PaintEventArgs e)
         {
-            if(!isPressed)
+            if (!isPressed)
             {
                 e.Graphics.Flush();
                 Opacity = 0;
             }
             else
-            { 
+            {
                 int top, bottom, left, right;
                 FindSelectionBounds(out top, out bottom, out left, out right);
                 var selectionRect = new Rectangle(left, top, right - left, bottom - top);
