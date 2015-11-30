@@ -44,11 +44,12 @@
 			this.TopMost = true;
 			this.WindowState = System.Windows.Forms.FormWindowState.Maximized;
 			this.FormClosing += new System.Windows.Forms.FormClosingEventHandler(this.MainForm_FormClosing);
-			this.Paint += new System.Windows.Forms.PaintEventHandler(this.MainForm_Paint);
-			this.KeyDown += new System.Windows.Forms.KeyEventHandler(this.MainForm_KeyDown);
-			this.MouseDown += new System.Windows.Forms.MouseEventHandler(this.MainForm_MouseDown);
-			this.MouseMove += new System.Windows.Forms.MouseEventHandler(this.MainForm_MouseMove);
-			this.ResumeLayout(false);
+            this.KeyDown += new System.Windows.Forms.KeyEventHandler(this.MainForm_KeyDown);
+            this.Paint += new System.Windows.Forms.PaintEventHandler(this.MainForm_Paint);
+            /*this.MouseDown += new System.Windows.Forms.MouseEventHandler(this.MainForm_MouseDown);
+            this.MouseUp += new System.Windows.Forms.MouseEventHandler(this.MainForm_MouseUp);
+            this.MouseMove += new System.Windows.Forms.MouseEventHandler(this.MainForm_MouseMove);*/
+            this.ResumeLayout(false);
 
 		}
 
