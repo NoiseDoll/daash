@@ -35,9 +35,10 @@
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.FormBorderStyle = System.Windows.Forms.FormBorderStyle.None;
+            this.StartPosition = System.Windows.Forms.FormStartPosition.CenterScreen;
             this.Name = "MainForm";
             this.Text = "MainForm";
-            this.StartPosition = System.Windows.Forms.FormStartPosition.CenterScreen;
+            this.DoubleBuffered = true;
             this.TopMost = true;
             this.WindowState = System.Windows.Forms.FormWindowState.Maximized;
             this.Paint += new System.Windows.Forms.PaintEventHandler(this.MainForm_Paint);

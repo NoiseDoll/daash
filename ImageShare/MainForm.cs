@@ -4,6 +4,7 @@ using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
+using System.IO;
 
 
 namespace ImageShare
@@ -18,6 +19,9 @@ namespace ImageShare
         private bool isPressed = false;
         private bool isMousePressed = false;
         private int keyId = 0;
+
+        private ImageFormat imageFormatType;
+        private string imageFormatName;
 
         enum KeyModifier
         {
@@ -50,10 +54,9 @@ namespace ImageShare
             // TODO Make custom shortcuts + shortcut parser
             RegisterHotKey(Handle, keyId, (int)(KeyModifier.Shift | KeyModifier.Alt), Keys.A.GetHashCode());
 
-            // TODO Make two options whether it to pause the screen or not
+            // TODO Make two options whether to pause the screen or not
             // BackgroundImage = CaptureDesktop(screenSize);
         }
-
 
         protected override void WndProc(ref Message m)
         {
@@ -90,6 +93,13 @@ namespace ImageShare
                 {
                     isMousePressed = false;
                     isPressed = false;
+
+                    int top, bottom, left, right;
+                    FindSelectionBounds(out top, out bottom, out left, out right);
+                    var curBitmap = CaptureScreenshot(new Rectangle(left, top, right - left, bottom - top));
+
+                    SaveImage(curBitmap);
+
                     Invalidate();
                 }
             }
@@ -115,17 +125,61 @@ namespace ImageShare
             base.WndProc(ref m);
         }
 
-        private Bitmap CaptureDesktop(Rectangle size)
+        // TODO Implement image uploading
+        private bool UploadImage(Bitmap curImage)
+        {
+            return false;
+        }
+
+        private void SaveImage(Bitmap curImage)
+        {
+            // Do not hardcode path and filenames, thus will be changed later
+            var path = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments) + @"\daash\";
+            var curDate = DateTime.Now.ToString("yyyy-MM-dd-HHmmss");
+            var imageSize = "-" + curImage.Width + "x" + curImage.Height;
+            var filename = @"";
+
+            // Set Image Format to PNG (false == JPEG)
+            setImageFormat(true);
+
+            try
+            {
+                Directory.CreateDirectory(path);
+                curImage.Save(path + curDate + imageSize + filename + this.imageFormatName, this.imageFormatType);
+            }
+            catch (Exception)
+            {
+                MessageBox.Show("Image cannot be saved");
+            }
+        }
+
+        private void setImageFormat(bool isPng)
+        {
+            // TODO Encapsulate fields
+            // TODO Add encoder params
+            if (isPng)
+            {
+                imageFormatType = ImageFormat.Png;
+                imageFormatName = ".png";
+            }
+            else
+            {
+                imageFormatType = ImageFormat.Jpeg;
+                imageFormatName = ".jpeg";
+            }
+        }
+
+        private Bitmap CaptureScreenshot(Rectangle size)
         {
             var bitmap = new Bitmap(size.Width, size.Height, PixelFormat.Format32bppRgb);
             using (Graphics g = Graphics.FromImage(bitmap))
             {
-                g.CopyFromScreen(0, 0, 0, 0, bitmap.Size);
+                g.CopyFromScreen(size.Left, size.Top, 0, 0, size.Size);
             }
             return bitmap;
         }
 
-        // Should be removed later
+        // Might become obsolete and will be removed later
         private void MainForm_KeyDown(object sender, KeyEventArgs e)
         {
             if (e.KeyCode == Keys.Escape)
@@ -148,44 +202,12 @@ namespace ImageShare
                 var selectionRect = new Rectangle(left, top, right - left, bottom - top);
 
                 // TODO Fix fill colors for selection. Right now it shows invalid color due to BackColor variable
-                //e.Graphics.CompositingQuality = CompositingQuality.GammaCorrected;
-                //e.Graphics.FillRectangle(new SolidBrush(Color.FromArgb(80, 0, 225, 225)), selectionRect);
-
-                /* Testing purposes
-
-                // Gets bitmap of a region
-                e.Graphics.Clear(Color.Red);
-                var bitmap = new Bitmap(selectionRect.Width + 1, selectionRect.Height + 1, PixelFormat.Format32bppRgb);
-                using (Graphics g = Graphics.FromImage(bitmap))
-                {
-                    g.CopyFromScreen(new Point(selectionRect.X, selectionRect.Y), new Point(selectionRect.X, selectionRect.Y), selectionRect.Size);
-                    g.FillRectangle(new SolidBrush(Color.FromArgb(10, 220, 220, 220)), selectionRect);
-                }
-
-                // Trying to draw directly on screen
-                var temp = Graphics.FromHwnd(IntPtr.Zero);
-                temp.CopyFromScreen(left, top, selectionRect.Width, selectionRect.Height, selectionRect.Size);
-                temp.DrawRectangle(Pens.Black, selectionRect);
-                temp.FillRectangle(new SolidBrush(Color.FromArgb(80, 220, 220, 220)), selectionRect);
-                temp.Dispose();
-                // We need to collect garbage ourselves oO
-                GC.Collect();
-                */
-
+                // Right now it seems to be not possible via region screenshoting method due to screen refresh rate
+                //e.Graphics.CopyFromScreen(selectionRect.Left, selectionRect.Top, selectionRect.Left, selectionRect.Top, selectionRect.Size);
+                //e.Graphics.FillRectangle(new SolidBrush(Color.FromArgb(10, 220, 220, 220)), selectionRect);
                 e.Graphics.DrawRectangle(Pens.Black, selectionRect);
-
             }
         }
-        /*
-        public static Bitmap CopyBitmap(Bitmap bmp_source, Rectangle region)
-        {
-            var bmp_dest = new Bitmap(region.Width + 1, region.Height + 1);
-            using (var g = Graphics.FromImage(bmp_dest))
-            {
-                g.DrawImage(bmp_source, region.X, region.Y, region, GraphicsUnit.Pixel);
-            }
-            return bmp_dest;
-        }*/
 
         private void FindSelectionBounds(out int top, out int bottom, out int left, out int right)
         {
