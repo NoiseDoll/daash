@@ -4,8 +4,8 @@ using System.Drawing.Imaging;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
 using System.IO;
-using System.Net.Http;
 using System.Threading.Tasks;
+using RestSharp;
 
 namespace ImageShare
 {
@@ -116,11 +116,9 @@ namespace ImageShare
             base.WndProc(ref m);
         }
 
-        private async Task<string> UploadImage(Bitmap curImage)
+        private async Task<IRestResponse> UploadImage(Bitmap curImage, string filename)
         {
-            using (var client = new HttpClient())
             using (var memoryStream = new MemoryStream())
-            using (var formData = new MultipartFormDataContent())
             {
                 var codecInfo = GetEncoder(imageFormatType);
                 if (codecInfo.FormatDescription == "JPEG")
@@ -128,20 +126,14 @@ namespace ImageShare
                 else
                     curImage.Save(memoryStream, imageFormatType);
 
-                HttpContent stringContent = new StringContent(uploadKey);
-                HttpContent bytesContent = new ByteArrayContent(memoryStream.ToArray());
-
-                formData.Add(bytesContent, "fileToUpload0", "uploadImage");
-                formData.Add(stringContent, "key");
-
-                // Hardcoded upload script url. Actually it would not be changed thus it is okay
-                var uploadUri = new Uri("http://daash.pw/cgi-bin/upload.pl");
+                var restClient = new RestClient("http://daash.pw/cgi-bin/upload.pl");
+                var request = new RestRequest(Method.POST);
+                request.AddParameter("key", uploadKey);
+                request.AddFileBytes("fileToUpload0", memoryStream.ToArray(), filename, "multipart/form-data");
 
                 try
                 {
-                    // BUG Server responses "not authorized" despite auth key is correct
-                    var response = await client.PostAsync(uploadUri, formData);
-                    return await response.Content.ReadAsStringAsync();
+                    return await restClient.ExecuteTaskAsync(request);
                 }
                 catch (Exception)
                 {
@@ -156,31 +148,35 @@ namespace ImageShare
             FindSelectionBounds(out top, out bottom, out left, out right);
             var curBitmap = CaptureScreenshot(new Rectangle(left, top, right - left, bottom - top));
 
-            SaveImage(curBitmap);
-            // TODO Copy image url to clipboard
-            var responseString = await UploadImage(curBitmap);
+            // Change hardcoded filename according to config
+            var curDate = DateTime.Now.ToString("yyyy-MM-dd-HHmmss");
+            var imageSize = "-" + curBitmap.Width + "x" + curBitmap.Height;
+            var filePostfix = @"";
+            var filename = curDate + imageSize + filePostfix + this.imageFormatName;
+
+            SaveImage(curBitmap, filename);
+            var responseString = (await UploadImage(curBitmap, filename)).Content;
             if (responseString == null)
                 MessageBox.Show("Image cannot be uploaded");
+            else
+                Clipboard.SetText(responseString);
         }
 
-        private void SaveImage(Bitmap curImage)
+        private void SaveImage(Bitmap curBitmap, string filename)
         {
-            // TODO Change hardcoded path and filenames according to config
+            // TODO Change hardcoded path
             var path = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments) + @"\daash\";
-            var curDate = DateTime.Now.ToString("yyyy-MM-dd-HHmmss");
-            var imageSize = "-" + curImage.Width + "x" + curImage.Height;
-            var filename = @"";
 
             try
             {
                 Directory.CreateDirectory(path);
-                var imageFullPath = path + curDate + imageSize + filename + this.imageFormatName;
+                var imageFullPath = path + filename;
 
                 var codecInfo = GetEncoder(imageFormatType);
                 if (codecInfo.FormatDescription == "JPEG")
-                    curImage.Save(imageFullPath, codecInfo, this.imageEncoderParameters);
+                    curBitmap.Save(imageFullPath, codecInfo, this.imageEncoderParameters);
                 else
-                    curImage.Save(imageFullPath, imageFormatType);
+                    curBitmap.Save(imageFullPath, imageFormatType);
             }
             catch (Exception)
             {
