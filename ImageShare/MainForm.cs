@@ -1,15 +1,14 @@
 ﻿using System;
 using System.Drawing;
-using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
 using System.IO;
-
+using System.Net.Http;
+using System.Threading.Tasks;
 
 namespace ImageShare
 {
-
     public partial class MainForm : Form
     {
         [DllImport("user32.dll")]
@@ -18,10 +17,14 @@ namespace ImageShare
         private readonly Rectangle screenSize;
         private bool isPressed = false;
         private bool isMousePressed = false;
-        private int keyId = 0;
 
-        private ImageFormat imageFormatType;
         private string imageFormatName;
+        private ImageFormat imageFormatType;
+        private EncoderParameters imageEncoderParameters;
+        private long encoderQuality;
+
+        private int shortcutKeyId = 0;
+        private string uploadKey;
 
         enum KeyModifier
         {
@@ -52,22 +55,24 @@ namespace ImageShare
             Opacity = 0;
 
             // TODO Make custom shortcuts + shortcut parser
-            RegisterHotKey(Handle, keyId, (int)(KeyModifier.Shift | KeyModifier.Alt), Keys.A.GetHashCode());
+            RegisterHotKey(Handle, shortcutKeyId, (int)(KeyModifier.Shift | KeyModifier.Alt), Keys.A.GetHashCode());
 
             // TODO Make two options whether to pause the screen or not
             // BackgroundImage = CaptureDesktop(screenSize);
+
+            // TODO Read uploadKey from config
+            uploadKey = "";
+
+            // Set Image Format to PNG (false == JPEG)
+            SetImageFormat(true);
         }
 
         protected override void WndProc(ref Message m)
         {
             const uint WM_HOTKEY = 0x0312;
-            const uint WM_NCHITTEST = 0x84;
             const uint WM_MOUSEMOVE = 0x0200;
             const uint WM_LBUTTONDOWN = 0x0201;
             const uint WM_LBUTTONUP = 0x0202;
-
-            const int HTTRANSPARENT = -1;
-            const int HTCLIENT = 1;
 
             if (m.Msg == WM_HOTKEY)
             {
@@ -94,12 +99,7 @@ namespace ImageShare
                     isMousePressed = false;
                     isPressed = false;
 
-                    int top, bottom, left, right;
-                    FindSelectionBounds(out top, out bottom, out left, out right);
-                    var curBitmap = CaptureScreenshot(new Rectangle(left, top, right - left, bottom - top));
-
-                    SaveImage(curBitmap);
-
+                    ImageCapturedAction();
                     Invalidate();
                 }
             }
@@ -113,39 +113,74 @@ namespace ImageShare
                 }
             }
 
-            // Not working at all for some reason. Probably will not be needed anymore
-            if (m.Msg == WM_NCHITTEST)
-            {
-                if (isPressed)
-                    m.Result = new IntPtr(HTCLIENT);
-                else
-                    m.Result = new IntPtr(HTTRANSPARENT);
-            }
-
             base.WndProc(ref m);
         }
 
-        // TODO Implement image uploading
-        private bool UploadImage(Bitmap curImage)
+        private async Task<string> UploadImage(Bitmap curImage)
         {
-            return false;
+            using (var client = new HttpClient())
+            using (var memoryStream = new MemoryStream())
+            using (var formData = new MultipartFormDataContent())
+            {
+                var codecInfo = GetEncoder(imageFormatType);
+                if (codecInfo.FormatDescription == "JPEG")
+                    curImage.Save(memoryStream, codecInfo, imageEncoderParameters);
+                else
+                    curImage.Save(memoryStream, imageFormatType);
+
+                HttpContent stringContent = new StringContent(uploadKey);
+                HttpContent bytesContent = new ByteArrayContent(memoryStream.ToArray());
+
+                formData.Add(bytesContent, "fileToUpload0", "uploadImage");
+                formData.Add(stringContent, "key");
+
+                // Hardcoded upload script url. Actually it would not be changed thus it is okay
+                var uploadUri = new Uri("http://daash.pw/cgi-bin/upload.pl");
+
+                try
+                {
+                    // BUG Server responses "not authorized" despite auth key is correct
+                    var response = await client.PostAsync(uploadUri, formData);
+                    return await response.Content.ReadAsStringAsync();
+                }
+                catch (Exception)
+                {
+                    return null;
+                }
+            }
+        }
+
+        private async void ImageCapturedAction()
+        {
+            int top, bottom, left, right;
+            FindSelectionBounds(out top, out bottom, out left, out right);
+            var curBitmap = CaptureScreenshot(new Rectangle(left, top, right - left, bottom - top));
+
+            SaveImage(curBitmap);
+            // TODO Copy image url to clipboard
+            var responseString = await UploadImage(curBitmap);
+            if (responseString == null)
+                MessageBox.Show("Image cannot be uploaded");
         }
 
         private void SaveImage(Bitmap curImage)
         {
-            // Do not hardcode path and filenames, thus will be changed later
+            // TODO Change hardcoded path and filenames according to config
             var path = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments) + @"\daash\";
             var curDate = DateTime.Now.ToString("yyyy-MM-dd-HHmmss");
             var imageSize = "-" + curImage.Width + "x" + curImage.Height;
             var filename = @"";
 
-            // Set Image Format to PNG (false == JPEG)
-            setImageFormat(true);
-
             try
             {
                 Directory.CreateDirectory(path);
-                curImage.Save(path + curDate + imageSize + filename + this.imageFormatName, this.imageFormatType);
+                var imageFullPath = path + curDate + imageSize + filename + this.imageFormatName;
+
+                var codecInfo = GetEncoder(imageFormatType);
+                if (codecInfo.FormatDescription == "JPEG")
+                    curImage.Save(imageFullPath, codecInfo, this.imageEncoderParameters);
+                else
+                    curImage.Save(imageFullPath, imageFormatType);
             }
             catch (Exception)
             {
@@ -153,10 +188,18 @@ namespace ImageShare
             }
         }
 
-        private void setImageFormat(bool isPng)
+        private EncoderParameters GetEncoderParams(long encoderQuality)
+        {
+            var qualityEncoder = Encoder.Quality;
+            var encoderParameters = new EncoderParameters(1);
+            var encoderParameter = new EncoderParameter(qualityEncoder, encoderQuality);
+            encoderParameters.Param[0] = encoderParameter;
+            return encoderParameters;
+        }
+
+        private void SetImageFormat(bool isPng)
         {
             // TODO Encapsulate fields
-            // TODO Add encoder params
             if (isPng)
             {
                 imageFormatType = ImageFormat.Png;
@@ -166,6 +209,10 @@ namespace ImageShare
             {
                 imageFormatType = ImageFormat.Jpeg;
                 imageFormatName = ".jpeg";
+
+                // TODO Read encoder quality from config
+                encoderQuality = 100L;
+                imageEncoderParameters = GetEncoderParams(encoderQuality);
             }
         }
 
@@ -231,6 +278,17 @@ namespace ImageShare
                 top = selection[1].Y;
                 bottom = selection[0].Y;
             }
+        }
+
+        private ImageCodecInfo GetEncoder(ImageFormat format)
+        {
+            ImageCodecInfo[] codecs = ImageCodecInfo.GetImageDecoders();
+
+            foreach (ImageCodecInfo codec in codecs)
+                if (codec.FormatID == format.Guid)
+                    return codec;
+
+            return null;
         }
     }
 }
