@@ -7,7 +7,7 @@ using System.IO;
 using System.Threading.Tasks;
 using RestSharp;
 
-namespace ImageShare
+namespace daash
 {
     public partial class MainForm : Form
     {
