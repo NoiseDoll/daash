@@ -99,6 +99,7 @@ namespace daash
                     isMousePressed = false;
                     isPressed = false;
 
+                    Opacity = 0;
                     ImageCapturedAction();
                     Invalidate();
                 }
@@ -234,10 +235,7 @@ namespace daash
         private void MainForm_Paint(object sender, PaintEventArgs e)
         {
             if (!isPressed)
-            {
                 e.Graphics.Flush();
-                Opacity = 0;
-            }
             else
             {
                 int top, bottom, left, right;
